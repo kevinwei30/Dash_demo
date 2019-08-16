@@ -4,14 +4,22 @@ import dash_html_components as html
 import pandas as pd
 import plotly.graph_objs as go
 from datetime import datetime
+import os
 
 external_stylesheets = ['bWLwgP.css']
 
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 server = app.server
 
-datafile = 'data_50.csv'
-df = pd.read_csv(datafile)
+local_data = 'local_data.csv'
+if os.path.isfile(local_data):
+    df = pd.read_csv(local_data)
+else:
+    print('Fetch data...')
+    datafile = 'https://docs.google.com/spreadsheets/d/12eWEuMkUAgKoNdvW59mvM5pycVFWdURTpKJSQSMIx4I/export?gid=1867009124&format=csv'
+    df = pd.read_csv(datafile)
+    print('Done!')
+    df.to_csv(local_data, index=False)
 
 available_sensors = df['variable'].unique()
 
@@ -93,7 +101,7 @@ def get_Time(t):
      dash.dependencies.Input('date_slider', 'value'),
      dash.dependencies.Input('Interval-component', 'n_intervals')])
 def update_graph(yaxis_column_name, cl_check, date, n):
-    df = pd.read_csv(datafile)
+    df = pd.read_csv(local_data)
     ddf = df[df['Date'] == date]
     dff = ddf[ddf['variable'] == yaxis_column_name]
     x = dff[dff['Elapsed Time'] == 0.6]['Molding Time'].apply(lambda t: datetime.strptime(str(t), '%y%m%d%H%M%S'))
