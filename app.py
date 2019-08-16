@@ -52,7 +52,7 @@ app.layout = html.Div([
             dcc.Dropdown(
                 id='sensor-yaxis-column',
                 options=[{'label': i, 'value': i} for i in available_sensors],
-                value=['1:9738-1-T', ' 2:9738-1-W'],
+                value=['1:9738-1-T'],
                 multi=True
             ),
         ], style={'width': '49%', 'float': 'right', 'display': 'inline-block'})
