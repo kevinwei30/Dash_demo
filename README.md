@@ -1,2 +1,2 @@
-# Dash_plotly
-some interactive data visualization example use Dash(plotly).
+# Dash_demo
+Interactive data visualization demo example using Dash(plotly).
