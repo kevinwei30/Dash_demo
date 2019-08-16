@@ -11,15 +11,8 @@ external_stylesheets = ['bWLwgP.css']
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 server = app.server
 
-local_data = 'local_data.csv'
-if os.path.isfile(local_data):
-    df = pd.read_csv(local_data)
-else:
-    print('Fetch data...')
-    datafile = 'https://docs.google.com/spreadsheets/d/12eWEuMkUAgKoNdvW59mvM5pycVFWdURTpKJSQSMIx4I/export?gid=1867009124&format=csv'
-    df = pd.read_csv(datafile)
-    print('Done!')
-    df.to_csv(local_data, index=False)
+local_data = 'data_100.csv'
+df = pd.read_csv(local_data)
 
 available_sensors = df['variable'].unique()
 
