@@ -8,6 +8,7 @@ from datetime import datetime
 external_stylesheets = ['bWLwgP.css']
 
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
+server = app.server
 
 datafile = 'data_50.csv'
 df = pd.read_csv(datafile)
