@@ -1,7 +1,6 @@
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
-# import dash_daq as daq
 import pandas as pd
 import plotly.graph_objs as go
 from datetime import datetime
@@ -217,4 +216,4 @@ def update_x_timeseries(hoverData, sensors, date):
 
 
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    app.run_server()
