@@ -75,8 +75,8 @@ app.layout = html.Div([
 
     dcc.Interval(
         id='Interval-component',
-        interval=60*1000, # in milliseconds, now update every 10 seconds
-        n_intervals=60
+        interval=30*1000, # in milliseconds, now update every 30 seconds
+        n_intervals=30
     )
 ])
 
@@ -98,7 +98,6 @@ def update_graph(yaxis_column_name, cl_check, date, n):
     ddf = df[df['Date'] == date]
     dff = ddf[ddf['variable'] == yaxis_column_name]
     x = dff[dff['Elapsed Time'] == 0.6]['Molding Time'].apply(lambda t: datetime.strptime(str(t), '%y%m%d%H%M%S'))
-    # y = dff[dff['Elapsed Time'] == 0.6]['value']
     y = dff.groupby('Time')['value'].max()
 
     datas = []
