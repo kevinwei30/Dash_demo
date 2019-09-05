@@ -93,8 +93,8 @@ for i, col in enumerate(df.columns):
         table_columns2.append({'name': col_zh2[i], 'id': col, 'editable': False})
         scc.append({'if': {'column_id': col}, 'width': '20%'})
     elif col == 'select_':
-        continue
-        # table_columns.append({'name': '勾選', 'id': col, 'hideable': True})
+#         continue
+        table_columns.append({'name': '勾選', 'id': col, 'hideable': True})
     else:
         table_columns.append({'name': col_zh[i], 'id': col, 'editable': False})
         table_columns2.append({'name': col_zh2[i], 'id': col, 'editable': False})
