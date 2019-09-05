@@ -113,7 +113,7 @@ label_df = df[df['label'].notnull()]
 
 # init Dash app
 app = dash.Dash(__name__)
-# server = app.server
+server = app.server
 
 # page layout
 app.layout = html.Div([
@@ -270,4 +270,4 @@ def update_label_section(data):
 
 # run app server
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    app.run_server()
