@@ -224,17 +224,21 @@ app.layout = html.Div([
     [Input('datatable-interactivity', 'selected_rows')]
 )
 def update_styles(selected_rows):
+    print(selected_rows)
     new_sdc =  [{
         'if': { 'row_index': i },
         'background_color': '#87CEFA'
     } for i in selected_rows]
     global df, selected_rows_
+    print(selected_rows_)
     if len(selected_rows) > len(selected_rows_):
         diff = list(set(selected_rows) - set(selected_rows_))
         df.iloc[diff, -1] = 'Y'
     else:
         diff = list(set(selected_rows_) - set(selected_rows))
         df.iloc[diff, -1] = 'N'
+    print(diff)
+    print(df.head())
     selected_rows_ = selected_rows
     return new_sdc + init_sdc, df.to_dict('records')
 
