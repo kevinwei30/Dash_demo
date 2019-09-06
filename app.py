@@ -224,21 +224,20 @@ app.layout = html.Div([
     [Input('datatable-interactivity', 'selected_rows')]
 )
 def update_styles(selected_rows):
-    print(selected_rows)
+    print('selected_rows: ', selected_rows)
     new_sdc =  [{
         'if': { 'row_index': i },
         'background_color': '#87CEFA'
     } for i in selected_rows]
     global df, selected_rows_
-    print(selected_rows_)
+    print('selected_rows_: ', selected_rows_)
     if len(selected_rows) > len(selected_rows_):
         diff = list(set(selected_rows) - set(selected_rows_))
         df.iloc[diff, -1] = 'Y'
     else:
         diff = list(set(selected_rows_) - set(selected_rows))
         df.iloc[diff, -1] = 'N'
-    print(diff)
-    print(df.head())
+    print('diff: ', diff)
     selected_rows_ = selected_rows
     return new_sdc + init_sdc, df.to_dict('records')
 
@@ -265,8 +264,10 @@ def update_page_number(page_n, row_ids):
     [Input('datatable-interactivity', 'data')]
 )
 def update_label_section(data):
+    print('user input!')
     global df
     df = pd.DataFrame(data)
+    print(df.head())
     alarm_df = df[df['region'].str.contains('4.5')]
     label_df = df[(df['label'].notnull()) | (df['record'] != '')]
     return label_df.to_dict('records'), alarm_df.to_dict('records')
