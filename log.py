@@ -6,6 +6,7 @@ import dash_html_components as html
 import pandas as pd
 from datetime import datetime
 import math
+import json
 
 
 # customed functions
@@ -31,10 +32,11 @@ def cl_region(x):
 # data preprocess
 df = pd.read_csv('0821_max.csv')
 
+df['index'] = df.index.to_series().apply(lambda i: str(i).zfill(5))
 df['Date'] = df['Time'].apply(date_process)
 df['time'] = df['Time'].apply(time_process)
 df = df.drop('Time', axis=1)
-df = df[['Date', 'time', 'max']]
+df = df[['index', 'Date', 'time', 'max']]
 
 cl_df = pd.read_csv('cl.csv', index_col=0)
 max_cl = cl_df.loc[:, 'max']
@@ -42,13 +44,12 @@ max_cl = cl_df.loc[:, 'max']
 df['region'] = df['max'].apply(cl_region)
 df['label'] = [None for i in range(len(df))]
 df['record'] = ['' for i in range(len(df))]
-df['select_'] = ['N' for i in range(len(df))]
 selected_rows_ = []
 
 
 # pre-defined variable
-col_zh = ['日期', '時間', '該模壓力峰值', '管制區間(n倍標準差)', '產品標註', '額外紀錄(可編輯)']
-col_zh2 = ['日期', '時間', '壓力峰值', '管制區間', '產品標註', '額外紀錄']
+col_zh = ['index', '日期', '時間', '該模壓力峰值', '管制區間(n倍標準差)', '產品標註', '額外紀錄(可編輯)']
+col_zh2 = ['index', '日期', '時間', '壓力峰值', '管制區間', '產品標註', '額外紀錄']
 
 init_sdc = [
     {
@@ -78,7 +79,7 @@ init_sdc = [
 
 page_size_ = 300
 total_page_ = math.ceil(len(df)/page_size_)
-origin_title = '模內壓SPC管制log紀錄'
+origin_title = '模內壓SPC管制 log紀錄'
 
 table_columns = []
 table_columns2 = []
@@ -92,21 +93,16 @@ for i, col in enumerate(df.columns):
         table_columns.append({'name': col_zh[i], 'id': col, 'editable': True})
         table_columns2.append({'name': col_zh2[i], 'id': col, 'editable': False})
         scc.append({'if': {'column_id': col}, 'width': '20%'})
-    elif col == 'select_':
-#         continue
-        table_columns.append({'name': '勾選', 'id': col, 'hideable': True})
+    elif col == 'index':
+        continue
+        # table_columns.append({'name': col_zh[i], 'id': col, 'hideable': True})
     else:
         table_columns.append({'name': col_zh[i], 'id': col, 'editable': False})
         table_columns2.append({'name': col_zh2[i], 'id': col, 'editable': False})
         col_width = '20%' if col == 'region' else '15%'
         scc.append({'if': {'column_id': col}, 'width': col_width})
 
-dc = [{
-    'if': {'column_id': 'label', 'filter_query': '{select_} eq "Y"'},
-    'options': [{'label': i, 'value': i}
-                for i in ['毛邊', '不飽模']]
-}]
-
+label_options = ['毛邊', '不飽模']
 alarm_df = df[df['region'].str.contains('4.5')]
 label_df = df[df['label'].notnull()]
 
@@ -118,21 +114,20 @@ server = app.server
 # page layout
 app.layout = html.Div([
     html.Div([
-        # html.Button('Submit', id='button'),
         html.Div([
             html.H4(
                 origin_title,
                 id='title',
                 style={'font-size': 20, 'color': '#00008B', 'margin-top': '5px'}
             )
-        ], style={'margin-bottom': '10px'}), 
+        ], style={'margin-bottom': '10px'}),
         html.Div([
             dash_table.DataTable(
                 id='datatable-interactivity',
                 columns=table_columns,
                 style_cell_conditional=scc,
                 style_cell={'minWidth': '100px'},
-                dropdown_conditional=dc,
+                # dropdown_conditional=dc,
                 style_data_conditional=init_sdc,
                 data=df.to_dict('records'),
                 editable=True,
@@ -182,6 +177,8 @@ app.layout = html.Div([
                 style_cell={'minWidth': '60px'},
                 style_data_conditional=init_sdc,
                 filter_action="native",
+                sort_action="native",
+                sort_mode="multi",
                 page_size= 100,
                 fixed_rows={'headers': True, 'data': 0 },
                 style_table={'minHeight': '360px', 'maxHeight': '360px', 'border': '1px solid #FFCCCC'},
@@ -203,6 +200,8 @@ app.layout = html.Div([
                 style_cell={'minWidth': '60px'},
                 style_data_conditional=init_sdc,
                 filter_action="native",
+                sort_action="native",
+                sort_mode="multi",
                 page_size= 20,
                 fixed_rows={'headers': True, 'data': 0 },
                 style_table={'minHeight': '360px', 'maxHeight': '360px', 'border': '1px solid #FFE5CC'},
@@ -212,34 +211,70 @@ app.layout = html.Div([
             )
         ], style={'height': '450px', 'margin-top': '20px'}),
     ], style={'width': '30%', 'display': 'inline-block', 'margin-left': '20px', 'vertical-align': 'top'}
-    )
+    ),
+    html.Div(id='temp-value', style={'display': 'none'})
 ])
 
 
 # callback functions
 
 @app.callback(
+    Output('temp-value', 'children'),
+    [Input('datatable-interactivity', 'data')]
+)
+def temp_value_update(data):
+    # print('data update!')
+    new_df = pd.DataFrame(data)
+    new_alarm_df = new_df[new_df['region'].str.contains('4.5')]
+    new_label_df = new_df[(new_df['label'].notnull()) | (new_df['record'] != '')]
+    datasets = {
+        'df': new_df.to_json(),
+        'alarm_df': new_alarm_df.to_json(),
+        'label_df': new_label_df.to_json(),
+    }
+    return json.dumps(datasets)
+
+
+@app.callback(
     [Output('datatable-interactivity', 'style_data_conditional'),
-     Output('datatable-interactivity', 'data')],
+     Output('datatable-interactivity', 'dropdown_conditional')],
     [Input('datatable-interactivity', 'selected_rows')]
 )
-def update_styles(selected_rows):
-    print('selected_rows: ', selected_rows)
+def update_sdc(selected_rows):
     new_sdc =  [{
         'if': { 'row_index': i },
         'background_color': '#87CEFA'
     } for i in selected_rows]
-    global df, selected_rows_
-    print('selected_rows_: ', selected_rows_)
-    if len(selected_rows) > len(selected_rows_):
-        diff = list(set(selected_rows) - set(selected_rows_))
-        df.iloc[diff, -1] = 'Y'
-    else:
-        diff = list(set(selected_rows_) - set(selected_rows))
-        df.iloc[diff, -1] = 'N'
-    print('diff: ', diff)
-    selected_rows_ = selected_rows
-    return new_sdc + init_sdc, df.to_dict('records')
+    row_str = ','
+    for row in selected_rows:
+        row_str += '[{:05d}],'.format(row)
+    filter_str = '"' + row_str + '"'
+    dc = [{
+        'if': {'column_id': 'label', 'filter_query': filter_str + ' contains {index}'},
+        'options': [{'label': i, 'value': i}
+                    for i in label_options]
+    }]
+    return new_sdc + init_sdc, dc
+
+
+@app.callback(
+    Output('alarm-section', 'data'),
+    [Input('temp-value', 'children')]
+)
+def update_alarm_section(jsonified_data):
+    datasets = json.loads(jsonified_data)
+    alarm_df = pd.read_json(datasets['alarm_df'], dtype={'Date': str})
+    return alarm_df.to_dict('records')
+
+
+@app.callback(
+    Output('label-section', 'data'),
+    [Input('temp-value', 'children')]
+)
+def update_label_section(jsonified_data):
+    datasets = json.loads(jsonified_data)
+    label_df = pd.read_json(datasets['label_df'], dtype={'Date': str})
+    return label_df.to_dict('records')
 
 
 @app.callback(
@@ -257,20 +292,6 @@ def update_page_number(page_n, row_ids):
     page_str = '頁數 : {:d}/{:d}'.format(int(page_n)+1, total_page)
     return page_str
 
-
-@app.callback(
-    [Output('label-section', 'data'),
-     Output('alarm-section', 'data')],
-    [Input('datatable-interactivity', 'data')]
-)
-def update_label_section(data):
-    print('user input!')
-    global df
-    df = pd.DataFrame(data)
-    print(df.head())
-    alarm_df = df[df['region'].str.contains('4.5')]
-    label_df = df[(df['label'].notnull()) | (df['record'] != '')]
-    return label_df.to_dict('records'), alarm_df.to_dict('records')
 
 
 # run app server
