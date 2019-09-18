@@ -2,10 +2,8 @@ import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, Output, State
 from app import app
-from apps import SPC_page, log_page
+from apps import spc_page, log_page
 
-
-server = app.server
 
 app.layout = html.Div([
     dcc.Location(id='url', refresh=False),
@@ -32,7 +30,7 @@ def display_page(pathname):
     if pathname == '/':
         return index_page
     elif pathname == '/SPC':
-        return SPC_page.layout
+        return spc_page.layout
     elif pathname == '/log':
         return log_page.layout
     else:
