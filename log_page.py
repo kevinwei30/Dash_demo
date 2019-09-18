@@ -73,7 +73,7 @@ label_options = ['毛邊', '不飽模', '翹曲變形', '表面髒污']
 
 # init Dash app
 app = dash.Dash(__name__)
-# server = app.server
+server = app.server
 
 
 # page layout
