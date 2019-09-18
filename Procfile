@@ -1,1 +1,1 @@
-web: gunicorn log:server
+web: gunicorn log_page:server
