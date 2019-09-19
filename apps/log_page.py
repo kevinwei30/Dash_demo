@@ -92,6 +92,11 @@ layout = html.Div([
                 id='log_date',
                 style={'display': 'inline-block', 'margin-left': '20px',
                        'padding': '8px', 'backgroundColor': '#ADD8E6'}
+            ),
+            dcc.Loading(
+                id='loading-log-1',
+                children=[html.Div(id='loading-output-log-1')],
+                style={'display': 'inline-block', 'margin-left': '20px'}
             )
         ], style={'margin-bottom': '10px'}),
         html.Div([
@@ -147,10 +152,17 @@ layout = html.Div([
     ),
     html.Div([
         html.Div([
-            html.H4(
-                '警報',
-                style={'font-size': 18, 'color': '#DC143C'}
-            ),
+            html.Div([
+                html.H4(
+                    '警報',
+                    style={'font-size': 18, 'color': '#DC143C'}
+                ),
+                dcc.Loading(
+                    id='loading-log-2',
+                    children=[html.Div(id='loading-output-log-2')],
+                    style={'display': 'inline-block', 'margin-left': '20px'}
+                )
+            ]),
             dash_table.DataTable(
                 id='alarm-section',
                 columns=table_columns2,
@@ -170,10 +182,17 @@ layout = html.Div([
             )
         ], style={'height': '450px', 'margin-bottom': '20px', 'margin-top': '10px'}),
         html.Div([
-            html.H4(
-                '標註 & 紀錄',
-                style={'font-size': 18, 'color': '#FF8C00'}
-            ),
+            html.Div([
+                html.H4(
+                    '標註 & 紀錄',
+                    style={'font-size': 18, 'color': '#FF8C00'}
+                ),
+                dcc.Loading(
+                    id='loading-log-3',
+                    children=[html.Div(id='loading-output-log-3')],
+                    style={'display': 'inline-block', 'margin-left': '20px'}
+                )
+            ]),
             dash_table.DataTable(
                 id='label-section',
                 columns=table_columns2,
@@ -210,8 +229,8 @@ layout = html.Div([
                 style={'display': 'inline-block', 'margin-top': '10px'}
             ),
             dcc.Loading(
-                id='loading-0',
-                children=[html.Div(id='loading-output-log')],
+                id='loading-log-0',
+                children=[html.Div(id='loading-output-log-0')],
                 type='circle',
                 style={'display': 'inline-block', 'margin-left': '20px', 'height': '30px'}
             )
@@ -231,7 +250,7 @@ layout = html.Div([
 @app.callback(
     [Output('datatable-interactivity', 'data'),
      Output('log_date', 'children'),
-     Output('loading-output-log', 'children'),
+     Output('loading-output-log-0', 'children'),
      Output('datatable-interactivity', 'selected_rows')],
     [Input('date-picker-log', 'date'),
      Input('refresh_button', 'n_clicks')]
@@ -274,7 +293,8 @@ def temp_value_update(data):
 
 @app.callback(
     [Output('datatable-interactivity', 'style_data_conditional'),
-     Output('datatable-interactivity', 'dropdown_conditional')],
+     Output('datatable-interactivity', 'dropdown_conditional'),
+     Output('loading-output-log-1', 'children')],
     [Input('datatable-interactivity', 'selected_rows')]
 )
 def update_sdc(selected_rows):
@@ -296,35 +316,37 @@ def update_sdc(selected_rows):
                     for i in label_options]
     }]
 
-    return new_sdc + init_sdc, dc
+    return new_sdc + init_sdc, dc, None
 
 
 @app.callback(
-    Output('alarm-section', 'data'),
+    [Output('alarm-section', 'data'),
+     Output('loading-output-log-2', 'children')],
     [Input('temp-value', 'children')]
 )
 def update_alarm_section(jsonified_data):
     if jsonified_data == None:
-        return []
+        return [], None
     
     datasets = json.loads(jsonified_data)
     alarm_df = pd.read_json(datasets['alarm_df'], dtype={'Date': str})
     
-    return alarm_df.to_dict('records')
+    return alarm_df.to_dict('records'), None
 
 
 @app.callback(
-    Output('label-section', 'data'),
+    [Output('label-section', 'data'),
+     Output('loading-output-log-3', 'children')],
     [Input('temp-value', 'children')]
 )
 def update_label_section(jsonified_data):
     if jsonified_data == None:
-        return []
+        return [], None
     
     datasets = json.loads(jsonified_data)
     label_df = pd.read_json(datasets['label_df'], dtype={'Date': str})
     
-    return label_df.to_dict('records')
+    return label_df.to_dict('records'), None
 
 
 @app.callback(
