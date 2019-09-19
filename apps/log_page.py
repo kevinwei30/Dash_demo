@@ -9,6 +9,7 @@ import math
 import json
 import os
 from .data_process import DataProcess
+from .app_func import *
 from app import app
 
 
@@ -363,8 +364,8 @@ def submit_confirm(submit_n_clicks, jsonified_data, date):
         return '確定提交標註與紀錄嗎?', date + ' 23:59:59'
     else:
         datasets = json.loads(jsonified_data)
-        df = pd.read_json(datasets['df'], dtype={'Date': str})
-        df.to_csv('datas/1_max_log.csv', index=False)
+        new_df = pd.read_json(datasets['label_df'], dtype={'Date': str})
+        update_log('datas/1_max_log.csv', new_df)
 
         return '確定要再次提交標註與紀錄嗎?', date + ' 23:59:59'
 

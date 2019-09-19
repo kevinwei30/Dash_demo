@@ -52,6 +52,9 @@ class DataProcess:
 
     
     def processC(self, start_t, end_t, sensor='1:9738-1-T'):
+        if not os.path.isfile('datas/max_cl.csv'):
+            self.processB()
+
         df2 = pd.read_csv('datas/max_cl.csv', index_col=0)
         self.max_cl = df2[sensor]
 
@@ -68,7 +71,7 @@ class DataProcess:
             df_c = df_c.groupby('Molding Time').max()
             df_c.reset_index(inplace=True)
 
-            # df_c['index'] = df_c.index.to_series().apply(lambda i: str(i).zfill(5))
+            df_c['index'] = df_c.index.to_series()
             df_c['Date'] = df_c['Molding Time'].apply(self.date_process)
             df_c['time'] = df_c['Molding Time'].apply(self.time_process)
             df_c = df_c.drop('Molding Time', axis=1)
