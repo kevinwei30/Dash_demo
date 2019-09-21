@@ -13,7 +13,7 @@ from app_func import *
 
 
 app = dash.Dash(__name__)
-# server = app.server
+server = app.server
 
 # app page layout
 app.layout = html.Div([
