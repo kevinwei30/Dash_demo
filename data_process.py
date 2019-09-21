@@ -14,7 +14,7 @@ class DataProcess:
         self.db = self.client.moldingData
         self.sensor9738 = self.db.sensor9738
         self.max9738 = self.db.max9738
-        # self.cl9738 = self.db.cl9738
+        self.cl9738 = self.db.cl9738
         # self.log9738 = self.db.log9738
 
         # self.df1 = pd.read_csv(table1) if table1 != None else table1
@@ -101,7 +101,30 @@ class DataProcess:
         return df_a
 
     
-    def processB(self, start_t=None, end_t=None, ranges=[1.5, 3, 4.5]):
+    def get_max_cl(self):
+        doc = self.cl9738.find({}, {'_id': 0})
+
+        if doc.count() == 0:
+            return self.processB()
+        else:
+            cl_df = pd.DataFrame.from_records(doc, index='cl_type')
+
+            '''
+            cl_df
+
+                     1:9738-1-T  2:9738-1-W  3:9738-2-T  4:9738-2-W
+            cl_type
+            ucl_1.5    9.819777     8.03348   10.238705    8.686384
+            lcl_1.5    9.140223     6.94652    9.567962    7.680282
+            ucl_3     10.159554     8.57696   10.574077    9.189435
+            lcl_3      8.800446     6.40304    9.232590    7.177231
+            ucl_4.5   10.499330     9.12044   10.909448    9.692486
+            lcl_4.5    8.460670     5.85956    8.897218    6.674180
+            '''
+
+            return cl_df
+
+    def update_cl(self, start_t=None, end_t=None, ranges=[1.5, 3, 4.5]):
 
         if start_t == None or end_t == None:
             doc = self.sensor9738.find().sort('Molding Time', -1).limit(30)
@@ -130,7 +153,23 @@ class DataProcess:
         max_cls = np.array(max_cls)
 
         cl_df = pd.DataFrame(max_cls, index=indexes, columns=sensors)
-        cl_df.to_csv('datas/max_cl.csv')
+        cl_df['cl_type'] = indexes
+
+        '''
+        cl_df
+
+                 1:9738-1-T  2:9738-1-W  3:9738-2-T  4:9738-2-W  cl_type
+        ucl_1.5    9.819777     8.03348   10.238705    8.686384  ucl_1.5
+        lcl_1.5    9.140223     6.94652    9.567962    7.680282  lcl_1.5
+        ucl_3     10.159554     8.57696   10.574077    9.189435    ucl_3
+        lcl_3      8.800446     6.40304    9.232590    7.177231    lcl_3
+        ucl_4.5   10.499330     9.12044   10.909448    9.692486  ucl_4.5
+        lcl_4.5    8.460670     5.85956    8.897218    6.674180  lcl_4.5
+        '''
+        
+        cl_records = cl_df.to_dict('records')
+        self.cl9738.drop()
+        self.cl9738.insert_many(cl_records)
 
         return cl_df
 

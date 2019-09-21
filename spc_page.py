@@ -13,7 +13,7 @@ from app_func import *
 
 
 app = dash.Dash(__name__)
-server = app.server
+# server = app.server
 
 # app page layout
 app.layout = html.Div([
@@ -144,10 +144,7 @@ def update_fetch_data(date):
 
     dff['Date'] = dff['Molding Time'].apply(lambda t: int(str(t)[:6]))
 
-    if os.path.isfile('datas/max_cl.csv'):
-        cl_df = pd.read_csv('datas/max_cl.csv', index_col=0)
-    else:
-        cl_df = DP.processB()
+    cl_df = DP.get_max_cl()
 
     return dff.to_json(), cl_df.to_json(), options, max_value, options, sensor_value, date[:10], None
 
@@ -200,14 +197,17 @@ def update_main_graph(yaxis, cl_check, jsonified_data, cl_data):
     [Input('main-indicator-scatter', 'clickData')]
 )
 def update_x_timeseries(click_data):
-    try:
-        t = click_data['points'][0]['customdata']
+    t = click_data['points'][0]['customdata']
+    if t == 0:
+        return None, None
+    else:
         DP = DataProcess()
         m_df = DP.processA(t, t, 'one mold')
         return m_df.to_json(), None
-    except:
-        t = 0
-        return None, None
+    
+    # except:
+    #     t = 0
+    #     return None, None
 
 
 @app.callback(
@@ -253,7 +253,7 @@ def update_cl(cl_clicks, date, t_start, t_end):
         DP = DataProcess()
         start_t = int((date + t_start).replace('-', '').replace(':', '')[2:])
         end_t = int((date + t_end).replace('-', '').replace(':', '')[2:])
-        DP.processB(start_t, end_t)
+        DP.update_cl(start_t, end_t)
 
     return date + ' 23:59:59'
 
