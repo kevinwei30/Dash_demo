@@ -15,8 +15,8 @@ def create_scatter_figure(datas, x_min, x_max):
             xaxis_range=[x_min, x_max],
             xaxis={
                 'title': 'Molding Time',
-                'rangeselector': {'buttons': list([{'count': 10, 'label': '10m', 'step': 'minute', 'stepmode': 'backward'},
-                                                   {'count': 1, 'label': '1h', 'step': 'hour', 'stepmode': 'backward'},
+                'rangeselector': {'buttons': list([{'count': 1, 'label': '1h', 'step': 'hour', 'stepmode': 'backward'},
+                                                   {'count': 6, 'label': '6h', 'step': 'hour', 'stepmode': 'backward'},
                                                    {'step': 'all'}])},
                 'rangeslider': {'visible': True},
                 'type': 'date'
