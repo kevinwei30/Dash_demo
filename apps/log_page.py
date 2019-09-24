@@ -261,6 +261,9 @@ def fetch_data(date):
 
     DP = DataProcess()
     df = DP.get_log(date[:10], '1:9738-1-T')
+    
+    if df == None:
+        return None, date[:10] + '(No Data)', [], [], None
 
     label_df = df[(df['label'].notnull()) | ((df['record'] != '') & (df['record'].notnull()))]
     origin_label_index = label_df.index.values.tolist()
