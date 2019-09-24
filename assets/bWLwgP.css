@@ -40,7 +40,7 @@
 }
 .Select-arrow {
   --accent: black;
-} 
+}
 
 
 /* Grid
@@ -225,6 +225,10 @@ button.button-primary,
 input[type="submit"].button-primary,
 input[type="reset"].button-primary,
 input[type="button"].button-primary {
+  height: 35px;
+  padding: 0 15px;
+  font-size: 15px;
+  font-weight: 500;
   color: #FFF;
   background-color: #33C3F0;
   border-color: #33C3F0; }
@@ -341,6 +345,9 @@ td:first-child {
 th:last-child,
 td:last-child {
   padding-right: 0; }
+td.CalendarDay {
+  padding: 0;
+}
 
 
 /* Spacing
