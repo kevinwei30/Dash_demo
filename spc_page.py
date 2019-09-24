@@ -127,7 +127,7 @@ def update_fetch_data(date):
     end_t = int('{}235959'.format(date.replace('-', '')[2:8]))
 
     DP = DataProcess()
-    dff = DP.processA(start_t, end_t)
+    dff = DP.get_sensor_data(start_t, end_t)
 
     if len(dff) <= 0:
         options = []
@@ -202,7 +202,7 @@ def update_x_timeseries(click_data):
         return None, None
     else:
         DP = DataProcess()
-        m_df = DP.processA(t, t, 'one mold')
+        m_df = DP.get_sensor_data(t, t, 'one mold')
         return m_df.to_json(), None
     
     # except:
