@@ -188,7 +188,7 @@ class DataProcess:
             df_a = self.get_sensor_data(start_t, end_t, 'max')
             
             if len(df_a) == 0:
-                return None
+                return []
 
             log_df = df_a.loc[:, ['Molding Time', sensor]]
             log_df['Date'] = log_df['Molding Time'].apply(self.date_process)
