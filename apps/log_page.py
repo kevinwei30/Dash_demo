@@ -263,7 +263,7 @@ def fetch_data(date):
     df = DP.get_log(date[:10], '1:9738-1-T')
     
     if len(df) == 0:
-        return None, date[:10] + '(No Data)', [], [], None
+        return [], date[:10] + '(No Data)', [], [], None
 
     label_df = df[(df['label'].notnull()) | ((df['record'] != '') & (df['record'].notnull()))]
     origin_label_index = label_df.index.values.tolist()
