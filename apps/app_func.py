@@ -71,14 +71,3 @@ def get_Time(t):
     t = str(t)
     t_str = t[:2] + '/' + t[2:4] + '/' + t[4:6] + ' ' + t[6:8] + ':' + t[8:10] + ':' + t[10:]
     return t_str
-
-
-def update_log(file, new_df):
-    df = pd.read_csv(file)
-    for new_row in new_df.values:
-        origin_row = df[(df['Date'] == new_row[1]) & (df['time'] == new_row[2])]
-        idx = origin_row.index
-        df.loc[idx, ['label', 'record']] = new_row[-2], new_row[-1]
-
-    df.to_csv(file, index=False)
-    return
