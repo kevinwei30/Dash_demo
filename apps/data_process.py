@@ -175,7 +175,7 @@ class DataProcess:
 
     
     def get_log(self, date, sensor='1:9738-1-T'):
-        self.max_cl = self.get_max_cl()
+        # self.max_cl = self.get_max_cl()
 
         query = {'Date': date}
         doc = self.log9738.find(query, {'_id': 0})
@@ -186,6 +186,9 @@ class DataProcess:
             start_t = int('{}000000'.format(date.replace('-', '')[2:]))
             end_t = int('{}235959'.format(date.replace('-', '')[2:]))
             df_a = self.get_sensor_data(start_t, end_t, 'max')
+            
+            if len(df_a) == 0:
+                return None
 
             log_df = df_a.loc[:, ['Molding Time', sensor]]
             log_df['Date'] = log_df['Molding Time'].apply(self.date_process)
