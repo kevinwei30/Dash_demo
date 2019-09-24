@@ -14,6 +14,7 @@ from app import app
 
 
 # app = dash.Dash(__name__)
+# server = app.server
 
 # app page layout
 layout = html.Div([
@@ -126,29 +127,25 @@ def update_fetch_data(date):
     start_t = int('{}000000'.format(date.replace('-', '')[2:8]))
     end_t = int('{}235959'.format(date.replace('-', '')[2:8]))
 
-    DP = DataProcess('datas/table_500.csv')
-    df = DP.processA(start_t, end_t)
-    df['Date'] = df['Molding Time'].apply(lambda t: int(str(t)[:6]))
+    DP = DataProcess()
+    dff = DP.get_sensor_data(start_t, end_t)
 
-    dff = df.groupby(['Molding Time', 'variable'])['value'].max()
-    dff = dff.unstack()
-    dff = dff.reset_index('Molding Time')
-
-    if len(df) <= 0:
+    if len(dff) <= 0:
         options = []
         max_value = None
         sensor_value = []
     else:
-        available_sensors = df['variable'].unique()
+        available_sensors = dff.columns.tolist()
+        available_sensors.remove('Molding Time')
+        
         options = [{'label': i, 'value': i} for i in available_sensors]
 
         max_value = available_sensors[0]
         sensor_value = available_sensors[:1]
 
-    if os.path.isfile('datas/max_cl.csv'):
-        cl_df = pd.read_csv('datas/max_cl.csv', index_col=0)
-    else:
-        cl_df = DP.processB(start_t, end_t)
+    dff['Date'] = dff['Molding Time'].apply(lambda t: int(str(t)[:6]))
+
+    cl_df = DP.get_max_cl()
 
     return dff.to_json(), cl_df.to_json(), options, max_value, options, sensor_value, date[:10], None
 
@@ -201,14 +198,17 @@ def update_main_graph(yaxis, cl_check, jsonified_data, cl_data):
     [Input('main-indicator-scatter', 'clickData')]
 )
 def update_x_timeseries(click_data):
-    try:
-        t = click_data['points'][0]['customdata']
-        DP = DataProcess('datas/table_500.csv')
-        m_df = DP.processA(t, t)
-        return m_df.to_json(), None
-    except:
-        t = 0
+    t = click_data['points'][0]['customdata']
+    if t == 0:
         return None, None
+    else:
+        DP = DataProcess()
+        m_df = DP.get_sensor_data(t, t, 'one mold')
+        return m_df.to_json(), None
+    
+    # except:
+    #     t = 0
+    #     return None, None
 
 
 @app.callback(
@@ -226,10 +226,9 @@ def sensor_select_update(sensors, mold_data, click_data):
     m_df = pd.read_json(mold_data)
     datas = []
     for sensor in sensors:
-        dff = m_df[m_df['variable'] == sensor]
         scatter = go.Scatter(
-            x=dff['Elapsed Time'],
-            y=dff['value'],
+            x=m_df['Elapsed Time'],
+            y=m_df[sensor],
             mode='lines+markers',
             marker={'size': 4},
             line={'width': 2},
@@ -252,10 +251,10 @@ def sensor_select_update(sensors, mold_data, click_data):
 )
 def update_cl(cl_clicks, date, t_start, t_end):
     if t_start != None and t_end != None:
-        DP = DataProcess('datas/table_500.csv')
-        start_t = (date + t_start).replace('-', '').replace(':', '')[2:]
-        end_t = (date + t_end).replace('-', '').replace(':', '')[2:]
-        DP.processB(start_t, end_t)
+        DP = DataProcess()
+        start_t = int((date + t_start).replace('-', '').replace(':', '')[2:])
+        end_t = int((date + t_end).replace('-', '').replace(':', '')[2:])
+        DP.update_cl(start_t, end_t)
 
     return date + ' 23:59:59'
 

@@ -1,34 +1,141 @@
 import pandas as pd
 import numpy as np
 import os
+import pymongo
 
 
 class DataProcess:
-    def __init__(self, table1=None, table2=None):
-        self.df1 = pd.read_csv(table1) if table1 != None else table1
+    def __init__(self):
+        self.user = 'kevinwei'
+        self.passwd = 'foxconnibdo'
+        connect_str = 'mongodb+srv://{}:{}@cluster0-fazdx.mongodb.net/test?retryWrites=true&w=majority'.format(self.user, self.passwd)
+        self.client = pymongo.MongoClient(connect_str)
 
-    
-    def processA(self, start_t=None, end_t=None, df=None):
-        df1 = self.df1 if df == None else df
+        self.db = self.client.moldingData
+        self.sensor9738 = self.db.sensor9738
+        self.max9738 = self.db.max9738
+        self.cl9738 = self.db.cl9738
+        self.log9738 = self.db.log9738
 
-        if start_t == None or end_t == None:
-            df_a = df1
+        # self.df1 = pd.read_csv(table1) if table1 != None else table1
+
+
+    def doc_to_df(self, doc):
+        print('doc to df...')
+
+        df = pd.DataFrame()
+        for idx, d in enumerate(doc):
+            # print(idx)
+            new_df = pd.DataFrame(d['records'], columns=d['columns'])
+            new_df['Molding Time'] = [d['Molding Time'] for i in range(len(new_df))]
+            new_df['Elapsed Time'] = d['Elapsed Time']
+            new_df = new_df[['Molding Time', 'Elapsed Time'] + d['columns']]
+            df = pd.concat([df, new_df], ignore_index=True)
+
+        return df
+
+
+    def get_sensor_data(self, start_t, end_t, mode='max'):
+        query = {'Molding Time': {'$gt': start_t-1, '$lt': end_t+1}}
+
+        # get sensor max values
+        if mode == 'max':
+            # doc = self.sensor9738.find(query, {'Molding Time': 1, 'columns': 1, 'max': 1})
+            doc = self.max9738.find(query)
+
+            data = []
+            molding_time = []
+            cols = []
+            for idx, d in enumerate(doc):
+                if idx == 0:
+                    cols = d['columns']
+
+                data.append(d['max'])
+                molding_time.append(d['Molding Time'])
+
+            df = pd.DataFrame(data, columns=cols)
+            df['Molding Time'] = molding_time
+            df_a = df[['Molding Time'] + cols]
+
+            '''
+            df_a.head()
+
+               Molding Time  1:9738-1-T  2:9738-1-W  3:9738-2-T  4:9738-2-W
+            0  190821000005        12.1        11.6        13.0        12.2
+            1  190821000019        10.6        10.1        11.5        10.3
+            2  190821000032        10.8        10.3        11.1        10.8
+            3  190821000046        10.8        10.3        11.6        10.9
+            4  190821000059        11.5        11.0        11.9        11.3
+            '''
+        
         else:
-            df_a = df1[(df1['Molding Time'] >= start_t) & (df1['Molding Time'] <= end_t)]
-        df_a = df_a.melt(id_vars=['Molding Time', 'Elapsed Time'])
+            doc = self.sensor9738.find(query)
+
+            cols = []
+            df = pd.DataFrame()
+            for idx, d in enumerate(doc):
+                if idx == 0:
+                    cols = d['columns']
+
+                new_df = pd.DataFrame(d['records'], columns=cols)
+                new_df['Molding Time'] = [d['Molding Time'] for i in range(len(new_df))]
+                new_df['Elapsed Time'] = d['Elapsed Time']
+                new_df = new_df[['Molding Time', 'Elapsed Time'] + cols]
+                df = pd.concat([df, new_df], ignore_index=True)
+
+            df_a = df[['Molding Time', 'Elapsed Time'] + cols]
+
+            '''
+            df_a.head()
+
+               Molding Time  Elapsed Time  1:9738-1-T  2:9738-1-W  3:9738-2-T  4:9738-2-W
+            0  190821125705          0.00         0.0         0.0         0.0         0.0
+            1  190821125705          0.02         0.0         0.1         0.0         0.1
+            2  190821125705          0.04         0.0         0.1         0.0         0.0
+            3  190821125705          0.06         0.1         0.0         0.1         0.1
+            4  190821125705          0.08         0.0         0.0         0.2         0.1
+            '''
+
+        print(df_a.shape)
 
         return df_a
 
     
-    def processB(self, start_t=None, end_t=None, ranges=[1.5, 3, 4.5], df=None):
-        df1 = self.df1 if df == None else df
-        sensors = df1.columns[-4:]
+    def get_max_cl(self):
+        doc = self.cl9738.find({}, {'_id': 0})
+
+        if doc.count() == 0:
+            return self.update_cl()
+        else:
+            cl_df = pd.DataFrame.from_records(doc, index='cl_type')
+
+            '''
+            cl_df
+
+                     1:9738-1-T  2:9738-1-W  3:9738-2-T  4:9738-2-W
+            cl_type
+            ucl_1.5    9.819777     8.03348   10.238705    8.686384
+            lcl_1.5    9.140223     6.94652    9.567962    7.680282
+            ucl_3     10.159554     8.57696   10.574077    9.189435
+            lcl_3      8.800446     6.40304    9.232590    7.177231
+            ucl_4.5   10.499330     9.12044   10.909448    9.692486
+            lcl_4.5    8.460670     5.85956    8.897218    6.674180
+            '''
+
+            return cl_df
+
+    def update_cl(self, start_t=None, end_t=None, ranges=[1.5, 3, 4.5]):
 
         if start_t == None or end_t == None:
-            df_b = df1[-30*301:]
+            doc = self.sensor9738.find().sort('Molding Time', -1).limit(30)
+            df_b = self.doc_to_df(doc)
         else:
-            df_b = df1[(df1['Molding Time'] >= int(start_t)) & (df1['Molding Time'] <= int(end_t))]
-        # print(df_b.shape)
+            query = {'Molding Time': {'$gt': start_t-1, '$lt': end_t+1}}
+            doc = self.sensor9738.find(query)
+            df_b = self.doc_to_df(doc)
+
+        print(df_b.shape)
+        sensors = df_b.columns[-4:]
         
         df_b = df_b.groupby('Molding Time').max()
         df_b.drop('Elapsed Time', axis=1, inplace=True)
@@ -46,50 +153,115 @@ class DataProcess:
         max_cls = np.array(max_cls)
 
         cl_df = pd.DataFrame(max_cls, index=indexes, columns=sensors)
-        cl_df.to_csv('datas/max_cl.csv')
+        cl_df['cl_type'] = indexes
+
+        '''
+        cl_df
+
+                 1:9738-1-T  2:9738-1-W  3:9738-2-T  4:9738-2-W  cl_type
+        ucl_1.5    9.819777     8.03348   10.238705    8.686384  ucl_1.5
+        lcl_1.5    9.140223     6.94652    9.567962    7.680282  lcl_1.5
+        ucl_3     10.159554     8.57696   10.574077    9.189435    ucl_3
+        lcl_3      8.800446     6.40304    9.232590    7.177231    lcl_3
+        ucl_4.5   10.499330     9.12044   10.909448    9.692486  ucl_4.5
+        lcl_4.5    8.460670     5.85956    8.897218    6.674180  lcl_4.5
+        '''
+        
+        cl_records = cl_df.to_dict('records')
+        self.cl9738.drop()
+        self.cl9738.insert_many(cl_records)
 
         return cl_df
 
     
-    def processC(self, start_t, end_t, sensor='1:9738-1-T'):
-        if not os.path.isfile('datas/max_cl.csv'):
-            self.processB()
+    def get_log(self, date, sensor='1:9738-1-T'):
+        self.max_cl = self.get_max_cl()
 
-        df2 = pd.read_csv('datas/max_cl.csv', index_col=0)
-        self.max_cl = df2[sensor]
+        query = {'Date': date}
+        doc = self.log9738.find(query, {'_id': 0})
 
-        file_c = 'datas/' + sensor.split(':')[0] + '_max_log.csv'
+        if doc.count() == 0:
+            print('create log!')
+            # create new doc to collection
+            start_t = int('{}000000'.format(date.replace('-', '')[2:]))
+            end_t = int('{}235959'.format(date.replace('-', '')[2:]))
+            df_a = self.get_sensor_data(start_t, end_t, 'max')
 
-        if os.path.isfile(file_c):
-            df_c = pd.read_csv(file_c)
-            # df_c['index'] = df_c['index'].apply(lambda i: str(i).zfill(5))
-            df_c['region'] = df_c['max'].apply(self.cl_region)
+            log_df = df_a.loc[:, ['Molding Time', sensor]]
+            log_df['Date'] = log_df['Molding Time'].apply(self.date_process)
+            log_df['time'] = log_df['Molding Time'].apply(self.time_process)
+            log_df.drop('Molding Time', axis=1, inplace=True)
+
+            cl_df = self.get_max_cl()
+            self.max_cl = cl_df.loc[:, sensor]
+
+            '''
+            max_cl
+
+            cl_type
+            ucl_1.5    12.728223
+            lcl_1.5     9.772518
+            ucl_3      14.206075
+            lcl_3       8.294666
+            ucl_4.5    15.683927
+            lcl_4.5     6.816814
+            '''
+
+            log_df['region'] = log_df[sensor].apply(self.cl_region)
+            log_df['label'] = [None for i in range(len(log_df))]
+            log_df['record'] = [None for i in range(len(log_df))]
+
+            log_df = log_df[['Date', 'time', sensor, 'region', 'label', 'record']]
+            log_df.columns = ['Date', 'time', 'max', 'region', 'label', 'record']
+
+            '''
+            log_df.head()
+
+                     Date      time   max region label record
+            0  2019-08-21  00:00:05  12.1  < 1.5  None   None
+            1  2019-08-21  00:00:19  10.6  < 1.5  None   None
+            2  2019-08-21  00:00:32  10.8  < 1.5  None   None
+            3  2019-08-21  00:00:46  10.8  < 1.5  None   None
+            4  2019-08-21  00:00:59  11.5  < 1.5  None   None
+            '''
+
+            log_records = log_df.to_dict('records')
+            self.log9738.insert_many(log_records)
+
         else:
-            df_c = self.df1.loc[:, ['Molding Time', sensor]]
-            # df_c = df_c[(df_c['Molding Time'] >= start_t) & (df_c['Molding Time'] <= end_t)]
-
-            df_c = df_c.groupby('Molding Time').max()
-            df_c.reset_index(inplace=True)
-
-            df_c['index'] = df_c.index.to_series()
-            df_c['Date'] = df_c['Molding Time'].apply(self.date_process)
-            df_c['time'] = df_c['Molding Time'].apply(self.time_process)
-            df_c = df_c.drop('Molding Time', axis=1)
-            df_c = df_c[['index', 'Date', 'time', sensor]]
-            df_c.columns = ['index', 'Date', 'time', 'max']
-
-            df_c['region'] = df_c['max'].apply(self.cl_region)
-            df_c['label'] = [None for i in range(len(df_c))]
-            df_c['record'] = [None for i in range(len(df_c))]
+            print('load log!')
+            # convert doc to log df
+            log_df = pd.DataFrame.from_records(doc)
             
-            df_c.to_csv(file_c, index=False)
+            '''
+            log_df.head()
 
-        log_date = self.date_process(start_t)
-        df_c = df_c[df_c['Date'] == log_date]
-        df_c.reset_index(drop=True, inplace=True)
-        df_c['index'] = df_c.index.to_series().apply(lambda i: str(i).zfill(5))
-        
-        return df_c
+                     Date      time   max region label record
+            0  2019-08-21  00:00:05  12.1  < 1.5  None   None
+            1  2019-08-21  00:00:19  10.6  < 1.5  None   None
+            2  2019-08-21  00:00:32  10.8  < 1.5  None   None
+            3  2019-08-21  00:00:46  10.8  < 1.5  None   None
+            4  2019-08-21  00:00:59  11.5  < 1.5  None   None
+            '''
+
+        log_df['index'] = log_df.index.to_series().apply(lambda i: str(i).zfill(5))
+
+        return log_df
+
+
+    def update_log(self, df, diff_index):
+        print('update log!')
+        print(diff_index)
+
+        diff_df = df.loc[diff_index, :]
+        diff_records = diff_df.to_dict('records')
+
+        for record in diff_records:
+            query = {'Date': record['Date'], 'time': record['time']}
+            newvalues = {"$set": {'label': record['label'], 'record': record['record']}}
+            self.log9738.update_one(query, newvalues)
+
+        return
 
     
     def date_process(self, t):
