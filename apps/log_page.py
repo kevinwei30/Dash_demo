@@ -9,7 +9,6 @@ import math
 import json
 import os
 from .data_process import DataProcess
-from .app_func import *
 from app import app
 
 
