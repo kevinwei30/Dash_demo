@@ -9,6 +9,8 @@ import math
 import json
 import os
 from data_process import DataProcess
+from app_func import *
+# from app import app
 
 
 
@@ -73,7 +75,7 @@ label_options = ['毛邊', '不飽模', '翹曲變形', '表面髒污']
 
 # init Dash app
 app = dash.Dash(__name__)
-server = app.server
+# server = app.server
 
 
 # page layout
@@ -89,7 +91,12 @@ app.layout = html.Div([
                 init_date,
                 id='log_date',
                 style={'display': 'inline-block', 'margin-left': '20px',
-                       'padding': '5px', 'backgroundColor': '#ADD8E6'}
+                       'padding': '8px', 'backgroundColor': '#ADD8E6'}
+            ),
+            dcc.Loading(
+                id='loading-log-1',
+                children=[html.Div(id='loading-output-log-1')],
+                style={'display': 'inline-block', 'margin-left': '20px'}
             )
         ], style={'margin-bottom': '10px'}),
         html.Div([
@@ -126,13 +133,13 @@ app.layout = html.Div([
                 style={'font-size': 8, 'display': 'inline-block'}
             ),
             html.Div([
-                html.Button(
-                    'log重整',
-                    id='refresh_button',
-                    className='button-primary',
-                    style={'margin-right': '20px', 'display': 'inline-block',
-                           'background-color': 'transparent', 'color': '#33C3F0'}
-                ),
+                # html.Button(
+                #     'log重整',
+                #     id='refresh_button',
+                #     className='button-primary',
+                #     style={'margin-right': '20px', 'display': 'inline-block',
+                #            'background-color': 'transparent', 'color': '#33C3F0'}
+                # ),
                 html.Button(
                     '人為紀錄提交',
                     id='submit_button',
@@ -145,10 +152,17 @@ app.layout = html.Div([
     ),
     html.Div([
         html.Div([
-            html.H4(
-                '警報',
-                style={'font-size': 18, 'color': '#DC143C'}
-            ),
+            html.Div([
+                html.H4(
+                    '警報',
+                    style={'font-size': 18, 'color': '#DC143C'}
+                ),
+                dcc.Loading(
+                    id='loading-log-2',
+                    children=[html.Div(id='loading-output-log-2')],
+                    style={'display': 'inline-block', 'margin-left': '20px'}
+                )
+            ]),
             dash_table.DataTable(
                 id='alarm-section',
                 columns=table_columns2,
@@ -168,10 +182,17 @@ app.layout = html.Div([
             )
         ], style={'height': '450px', 'margin-bottom': '20px', 'margin-top': '10px'}),
         html.Div([
-            html.H4(
-                '標註 & 紀錄',
-                style={'font-size': 18, 'color': '#FF8C00'}
-            ),
+            html.Div([
+                html.H4(
+                    '標註 & 紀錄',
+                    style={'font-size': 18, 'color': '#FF8C00'}
+                ),
+                dcc.Loading(
+                    id='loading-log-3',
+                    children=[html.Div(id='loading-output-log-3')],
+                    style={'display': 'inline-block', 'margin-left': '20px'}
+                )
+            ]),
             dash_table.DataTable(
                 id='label-section',
                 columns=table_columns2,
@@ -199,7 +220,7 @@ app.layout = html.Div([
                 style={'font-size': 18, 'color': 'black'}
             ),
             dcc.DatePickerSingle(
-                id='date-picker-single',
+                id='date-picker-log',
                 min_date_allowed=dt(2000, 1, 1),
                 max_date_allowed=dt(2030, 12, 31),
                 initial_visible_month=dt(2019, 8, 21),
@@ -208,8 +229,8 @@ app.layout = html.Div([
                 style={'display': 'inline-block', 'margin-top': '10px'}
             ),
             dcc.Loading(
-                id='loading-0',
-                children=[html.Div(id='loading-output-0')],
+                id='loading-log-0',
+                children=[html.Div(id='loading-output-log-0')],
                 type='circle',
                 style={'display': 'inline-block', 'margin-left': '20px', 'height': '30px'}
             )
@@ -217,6 +238,7 @@ app.layout = html.Div([
     ], style={'width': '10%', 'display': 'inline-block', 'margin-left': '40px', 'vertical-align': 'top'}
     ),
     html.Div(id='temp-value', style={'display': 'none'}),
+    html.Div(id='origin_label_index', style={'display': 'none'}),
     dcc.ConfirmDialog(
         id='confirm',
         message='確定提交標註與紀錄嗎?',
@@ -229,18 +251,22 @@ app.layout = html.Div([
 @app.callback(
     [Output('datatable-interactivity', 'data'),
      Output('log_date', 'children'),
-     Output('loading-output-0', 'children')],
-    [Input('date-picker-single', 'date'),
-     Input('refresh_button', 'n_clicks')]
+     Output('datatable-interactivity', 'selected_rows'),
+     Output('origin_label_index', 'children'),
+     Output('loading-output-log-0', 'children')],
+    [Input('date-picker-log', 'date')]
+    # [State('refresh_button', 'n_clicks')]
 )
-def fetch_data(date, refresh_clicks):
-    start_t = int('{}000000'.format(date.replace('-', '')[2:8]))
-    end_t = int('{}235959'.format(date.replace('-', '')[2:8]))
+def fetch_data(date):
+    print('fetch log!!!')
 
     DP = DataProcess()
-    df = DP.processC(start_t, end_t, '1:9738-1-T')
+    df = DP.get_log(date[:10], '1:9738-1-T')
 
-    return df.to_dict('records'), date[:10], None
+    label_df = df[(df['label'].notnull()) | ((df['record'] != '') & (df['record'].notnull()))]
+    origin_label_index = label_df.index.values.tolist()
+
+    return df.to_dict('records'), date[:10], [], origin_label_index, None
 
 
 @app.callback(
@@ -252,15 +278,14 @@ def temp_value_update(data):
         print('no data...')
         return None
     
-    # print('data update!')
     new_df = pd.DataFrame(data)
     if len(new_df) == 0:
         print('empty df...')
         return None
 
-    # print(new_df.head())
     new_alarm_df = new_df[new_df['region'].str.contains('4.5')]
     new_label_df = new_df[(new_df['label'].notnull()) | ((new_df['record'] != '') & (new_df['record'].notnull()))]
+
     datasets = {
         'df': new_df.to_json(),
         'alarm_df': new_alarm_df.to_json(),
@@ -271,14 +296,17 @@ def temp_value_update(data):
 
 @app.callback(
     [Output('datatable-interactivity', 'style_data_conditional'),
-     Output('datatable-interactivity', 'dropdown_conditional')],
+     Output('datatable-interactivity', 'dropdown_conditional'),
+     Output('loading-output-log-1', 'children')],
     [Input('datatable-interactivity', 'selected_rows')]
 )
 def update_sdc(selected_rows):
+    # print(selected_rows)
     row_str = ','
     for row in selected_rows:
         row_str += '{:05d},'.format(row)
     filter_str = '"' + row_str + '"'
+    # print(filter_str)
 
     new_sdc =  [{
         'if': { 'filter_query': filter_str + ' contains {index}' },
@@ -290,35 +318,38 @@ def update_sdc(selected_rows):
         'options': [{'label': i, 'value': i}
                     for i in label_options]
     }]
-    return new_sdc + init_sdc, dc
+
+    return new_sdc + init_sdc, dc, None
 
 
 @app.callback(
-    Output('alarm-section', 'data'),
+    [Output('alarm-section', 'data'),
+     Output('loading-output-log-2', 'children')],
     [Input('temp-value', 'children')]
 )
 def update_alarm_section(jsonified_data):
     if jsonified_data == None:
-        return []
+        return [], None
     
     datasets = json.loads(jsonified_data)
     alarm_df = pd.read_json(datasets['alarm_df'], dtype={'Date': str})
     
-    return alarm_df.to_dict('records')
+    return alarm_df.to_dict('records'), None
 
 
 @app.callback(
-    Output('label-section', 'data'),
+    [Output('label-section', 'data'),
+     Output('loading-output-log-3', 'children')],
     [Input('temp-value', 'children')]
 )
 def update_label_section(jsonified_data):
     if jsonified_data == None:
-        return []
+        return [], None
     
     datasets = json.loads(jsonified_data)
     label_df = pd.read_json(datasets['label_df'], dtype={'Date': str})
     
-    return label_df.to_dict('records')
+    return label_df.to_dict('records'), None
 
 
 @app.callback(
@@ -347,21 +378,27 @@ def display_confirm(n_clicks):
 
 
 @app.callback(
-    [Output('confirm', 'message'),
-     Output('date-picker-single', 'date')],
+    Output('confirm', 'message'),
+     # Output('date-picker-log', 'date')],
     [Input('confirm', 'submit_n_clicks')],
     [State('temp-value', 'children'),
-     State('log_date', 'children')]
+     State('log_date', 'children'),
+     State('origin_label_index', 'children')]
 )
-def submit_confirm(submit_n_clicks, jsonified_data, date):
+def submit_confirm(submit_n_clicks, jsonified_data, date, origin_label_index):
     if submit_n_clicks == None:
-        return '確定提交標註與紀錄嗎?', date + ' 23:59:59'
+        return '確定提交標註與紀錄嗎?'
     else:
         datasets = json.loads(jsonified_data)
+        label_df = pd.read_json(datasets['label_df'], dtype={'Date': str})
         df = pd.read_json(datasets['df'], dtype={'Date': str})
-        df.to_csv('1_max_log.csv', index=False)
 
-        return '確定要再次提交標註與紀錄嗎?', date + ' 23:59:59'
+        diff_index = set(label_df.index.values.tolist()).symmetric_difference(set(origin_label_index))
+
+        DP = DataProcess()
+        DP.update_log(df, list(diff_index))
+
+        return '確定要再次提交標註與紀錄嗎?'
 
 
 
