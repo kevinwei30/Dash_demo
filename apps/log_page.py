@@ -132,13 +132,13 @@ layout = html.Div([
                 style={'font-size': 8, 'display': 'inline-block'}
             ),
             html.Div([
-                html.Button(
-                    'log重整',
-                    id='refresh_button',
-                    className='button-primary',
-                    style={'margin-right': '20px', 'display': 'inline-block',
-                           'background-color': 'transparent', 'color': '#33C3F0'}
-                ),
+                # html.Button(
+                #     'log重整',
+                #     id='refresh_button',
+                #     className='button-primary',
+                #     style={'margin-right': '20px', 'display': 'inline-block',
+                #            'background-color': 'transparent', 'color': '#33C3F0'}
+                # ),
                 html.Button(
                     '人為紀錄提交',
                     id='submit_button',
@@ -237,6 +237,7 @@ layout = html.Div([
     ], style={'width': '10%', 'display': 'inline-block', 'margin-left': '40px', 'vertical-align': 'top'}
     ),
     html.Div(id='temp-value', style={'display': 'none'}),
+    html.Div(id='origin_label_index', style={'display': 'none'}),
     dcc.ConfirmDialog(
         id='confirm',
         message='確定提交標註與紀錄嗎?',
@@ -249,19 +250,22 @@ layout = html.Div([
 @app.callback(
     [Output('datatable-interactivity', 'data'),
      Output('log_date', 'children'),
-     Output('loading-output-log-0', 'children'),
-     Output('datatable-interactivity', 'selected_rows')],
-    [Input('date-picker-log', 'date'),
-     Input('refresh_button', 'n_clicks')]
+     Output('datatable-interactivity', 'selected_rows'),
+     Output('origin_label_index', 'children'),
+     Output('loading-output-log-0', 'children')],
+    [Input('date-picker-log', 'date')]
+    # [State('refresh_button', 'n_clicks')]
 )
-def fetch_data(date, refresh_clicks):
-    start_t = int('{}000000'.format(date.replace('-', '')[2:8]))
-    end_t = int('{}235959'.format(date.replace('-', '')[2:8]))
+def fetch_data(date):
+    print('fetch log!!!')
 
-    DP = DataProcess('datas/table_500.csv')
-    df = DP.processC(start_t, end_t, '1:9738-1-T')
+    DP = DataProcess()
+    df = DP.get_log(date[:10], '1:9738-1-T')
 
-    return df.to_dict('records'), date[:10], None, []
+    label_df = df[(df['label'].notnull()) | ((df['record'] != '') & (df['record'].notnull()))]
+    origin_label_index = label_df.index.values.tolist()
+
+    return df.to_dict('records'), date[:10], [], origin_label_index, None
 
 
 @app.callback(
@@ -273,15 +277,14 @@ def temp_value_update(data):
         print('no data...')
         return None
     
-    # print('data update!')
     new_df = pd.DataFrame(data)
     if len(new_df) == 0:
         print('empty df...')
         return None
 
-    # print(new_df.head())
     new_alarm_df = new_df[new_df['region'].str.contains('4.5')]
     new_label_df = new_df[(new_df['label'].notnull()) | ((new_df['record'] != '') & (new_df['record'].notnull()))]
+
     datasets = {
         'df': new_df.to_json(),
         'alarm_df': new_alarm_df.to_json(),
@@ -374,21 +377,27 @@ def display_confirm(n_clicks):
 
 
 @app.callback(
-    [Output('confirm', 'message'),
-     Output('date-picker-log', 'date')],
+    Output('confirm', 'message'),
+     # Output('date-picker-log', 'date')],
     [Input('confirm', 'submit_n_clicks')],
     [State('temp-value', 'children'),
-     State('log_date', 'children')]
+     State('log_date', 'children'),
+     State('origin_label_index', 'children')]
 )
-def submit_confirm(submit_n_clicks, jsonified_data, date):
+def submit_confirm(submit_n_clicks, jsonified_data, date, origin_label_index):
     if submit_n_clicks == None:
-        return '確定提交標註與紀錄嗎?', date + ' 23:59:59'
+        return '確定提交標註與紀錄嗎?'
     else:
         datasets = json.loads(jsonified_data)
-        new_df = pd.read_json(datasets['label_df'], dtype={'Date': str})
-        update_log('datas/1_max_log.csv', new_df)
+        label_df = pd.read_json(datasets['label_df'], dtype={'Date': str})
+        df = pd.read_json(datasets['df'], dtype={'Date': str})
 
-        return '確定要再次提交標註與紀錄嗎?', date + ' 23:59:59'
+        diff_index = set(label_df.index.values.tolist()).symmetric_difference(set(origin_label_index))
+
+        DP = DataProcess()
+        DP.update_log(df, list(diff_index))
+
+        return '確定要再次提交標註與紀錄嗎?'
 
 
 
