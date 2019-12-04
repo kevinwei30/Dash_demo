@@ -3,7 +3,7 @@ import numpy as np
 import os
 import MySQLdb
 from datetime import datetime as dt
-from tqdm import tqdm
+# from tqdm import tqdm
 from abc import ABC, abstractmethod
 
 
