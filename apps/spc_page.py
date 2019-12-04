@@ -4,159 +4,244 @@ import dash_html_components as html
 from dash.dependencies import Input, Output, State
 import pandas as pd
 import plotly.graph_objs as go
-from datetime import datetime
 import os
 import json
 from datetime import datetime as dt
-from .data_process import DataProcess
-from .app_func import *
+from datetime import timedelta
+from .app_func import realtime_figure, create_scatter_figure, create_cl, create_time_series, update_models
+from .db_connectors import RawDBConnector as rawDB
+from .db_connectors import PreprocessedDBConnector as preDB
+from .model_operations import SPCModel
 from app import app
 
 
-# app = dash.Dash(__name__)
-# server = app.server
+range_options = [10, 20, 30]
+
 
 # app page layout
 layout = html.Div([
     html.Div([
         html.Div([
-            html.H5('日期選擇', style={'display': 'inline-block'}),
-            dcc.DatePickerSingle(
-                id='date-picker-single',
-                min_date_allowed=dt(2000, 1, 1),
-                max_date_allowed=dt(2030, 12, 31),
-                initial_visible_month=dt(2019, 8, 21),
-                date=str(dt(2019, 8, 21, 23, 59, 59)),
-                display_format='YYYY-MM-DD',
-                style={'display': 'inline-block', 'margin-left': '20px'}
+            html.Div([
+                html.P(
+                    '實時模內壓峰值監控',
+                    style={'fontSize': '18px', 'fontWeight': '800', 'display': 'inline-block', 'margin': '0px 20px'}
+                ),
+                dcc.Dropdown(
+                    id='spc-realtime-sensor',
+                    value='sensor1',
+                    style={'display': 'inline-block', 'width': '120px', 'verticalAlign': 'middle', 'marginRight': '15px'}
+                ),
+                html.P(
+                    '監控長度(分鐘):',
+                    style={'fontSize': '15px', 'display': 'inline-block', 'marginRight': '5px'}
+                ),
+                dcc.Dropdown(
+                    id='spc-realtime-range',
+                    value=20,
+                    options = [{'label': i, 'value': i} for i in range_options],
+                    style={'display': 'inline-block', 'width': '50px', 'verticalAlign': 'middle'}
+                )
+            ]),
+            dcc.Graph(
+                id='spc-realtime-graph',
+                clickData={'points': [{'customdata': 0}]},
+                style={'height': '400px'}
+            ),
+        ], style={'display': 'inline-block', 'width': '50%', 'borderRight': '2px solid #CCE5FF'}),
+        html.Div([
+            html.Div([
+                html.P(
+                    '單模模內壓曲線',
+                    style={'fontSize': '18px', 'fontWeight': '800', 'display': 'inline-block', 'margin': '0px 20px'}
+                ),
+                dcc.Dropdown(
+                    id='spc-onemold-sensor',
+                    value=[],
+                    multi=True,
+                    style={'display': 'inline-block', 'width': '420px', 'verticalAlign': 'middle'}
+                ),
+                dcc.Loading(
+                    id='spc-loading-2',
+                    children=[html.Div(id='spc-loading-output-2')],
+                    style={'display': 'inline-block', 'marginLeft': '20px'}
+                )
+            ]),
+            dcc.Graph(id='spc-onemold-graph')
+        ], style={'display': 'inline-block', 'width': '48%', 'float': 'right'})
+    ], style={'margin': '5px 5px'}),
+
+    html.Div([
+        html.Div([
+            html.P(
+                '模內壓峰值變化',
+                style={'fontSize': '18px', 'fontWeight': '800', 'display': 'inline-block', 'marginLeft': '20px'}
+            ),
+            html.P(
+                '2019-01-01',
+                id='spc-date-selected',
+                style={'display': 'inline-block', 'margin': '0px 20px'}
+            ),
+            dcc.Dropdown(
+                id='spc-max-sensor',
+                style={'display': 'inline-block', 'width': '150px', 'verticalAlign': 'middle'}
+            ),
+            dcc.Checklist(
+                id='spc-checklist',
+                options=[
+                    {'label': '管制線(1.5)', 'value': 'cl_1.5'},
+                    {'label': '管制線(3)', 'value': 'cl_3'},
+                    {'label': '管制線(4.5)', 'value': 'cl_4.5'}
+                ],
+                value=[],
+                labelStyle={'display': 'inline-block', 'marginLeft': '20px'},
+                style={'display': 'inline-block', 'margin': '0px 20px'}
             ),
             dcc.Loading(
-                id='loading-0',
-                children=[html.Div(id='loading-output-0')],
-                type='circle',
-                style={'display': 'inline-block', 'margin-left': '20px', 'height': '30px'}
+                id='spc-loading-1',
+                children=[html.Div(id='spc-loading-output-1')],
+                style={'display': 'inline-block'}
             )
-        ], style={'display': 'inline-block', 'margin': ' 2px 20px'}),
-        html.Div([
-            html.P('管制時間段 :', style={'display': 'inline-block', 'margin': '0px 10px'}),
-            html.P('2019-08-21', id='date-selected', style={'display': 'inline-block', 'margin-right': '20px'}),
-            dcc.Input(id='cl_input1', placeholder='HH:MM:SS', style={'width': '100px'}),
-            html.P('~', style={'display': 'inline-block', 'margin': '0px 10px'}),
-            dcc.Input(id='cl_input2', placeholder='HH:MM:SS', style={'width': '100px'}),
-            html.Button('重設管制線', id='cl_submit', className='button-primary', style={'margin': '0px 10px'})
-        ], style={'display': 'inline-block', 'padding': '8px', 'float':'right',
-                  'vertical-align': 'middle', 'backgroundColor': '#FFFACD'}
-        )
-    ], style={'margin-bottom': '20px'}),
-    html.Div([
-        html.Div([
-            html.Div([
-                html.Div([
-                    html.P('壓力傳感器(for模內壓峰值變化)')
-                ], style={'height': '30px', 'color': 'green'}), 
-                dcc.Dropdown(
-                    id='max-yaxis-column'
-                ),
-                dcc.Checklist(
-                    id='cl_check',
-                    options=[
-                        {'label': '管制線', 'value': 'CL'}
-                    ],
-                    value=[],
-                    labelStyle={'display': 'inline-block'}
-                )
-            ], style={'margin': '5px 20px'}),
-        ], style={'width': '50%', 'display': 'inline-block'}),
-
-        html.Div([
-            html.Div([
-                html.P('壓力傳感器(for模內壓曲線)')
-            ], style={'height': '30px', 'color': 'blue'}), 
-            dcc.Dropdown(
-                id='sensor-yaxis-column',
-                value=[],
-                multi=True
-            ),
-        ], style={'width': '45%', 'display': 'inline-block', 'float': 'right', 'margin-top': '5px'})
-    ], style={
-        'borderBottom': 'thin lightgrey solid',
-        'backgroundColor': 'rgb(240, 240, 240)',
-        'padding': '5px 5px',
-    }),
-
-    html.Div([
-        dcc.Loading(id='loading-1', children=[html.Div(id='loading-output-1')]),
+        ]),
         dcc.Graph(
-            id='main-indicator-scatter',
+            id='spc-max-graph',
             clickData={'points': [{'customdata': 0}]}
         ),
-    ], style={'width': '50%', 'display': 'inline-block', 'margin': '20px 5px', 'paddingLeft': '20px', 'float': 'left'}),
-    
-    html.Div([
-        dcc.Loading(id='loading-2', children=[html.Div(id='loading-output-2')]),
-        dcc.Graph(id='y-time-series'),
-    ], style={'display': 'inline-block', 'width': '45%', 'float': 'right', 'margin': '20px 5px'}),
+    ], style={'padding': '5px 5px', 'borderTop': '2px solid #CCE5FF'}),
 
-    # dcc.Interval(
-    #     id='Interval-component',
-    #     interval=60*1000, # in milliseconds, now update every 60 seconds
-    #     n_intervals=60
-    # ),
+    dcc.Interval(
+        id='interval-component',
+        interval=5*1000, # in milliseconds, now update every 5 seconds
+        n_intervals=0
+    ),
 
-    html.Div(id='temp-value-a', style={'display': 'none'}),
-    html.Div(id='temp-value-b', style={'display': 'none'}),
-    html.Div(id='temp-value-c', style={'display': 'none'})
+    html.Div(id='spc-temp-value-a', style={'display': 'none'}),
+    html.Div(id='spc-temp-value-b', style={'display': 'none'}),
+    html.Div(id='spc-temp-value-c', style={'display': 'none'}),
+
+    dcc.ConfirmDialog(
+        id='retrain-confirm',
+        message='確定變更工況嗎?'
+    )
 ])
 
 
 
 # callback functions
 @app.callback(
-    [Output('temp-value-a', 'children'),
-     Output('temp-value-b', 'children'),
-     Output('max-yaxis-column', 'options'),
-     Output('max-yaxis-column', 'value'),
-     Output('sensor-yaxis-column', 'options'),
-     Output('sensor-yaxis-column', 'value'),
-     Output('date-selected', 'children'),
-     Output('loading-output-0', 'children')],
-    [Input('date-picker-single', 'date')]
+    Output('spc-realtime-graph', 'figure'),
+    [Input('interval-component', 'n_intervals')],
+    [State('spc-realtime-range', 'value'),
+     State('spc-realtime-sensor', 'value'),
+     State('spc-machine-id', 'value'),
+     State('spc-temp-value-b', 'children')]
 )
-def update_fetch_data(date):
-    # print(date)
-    start_t = int('{}000000'.format(date.replace('-', '')[2:8]))
-    end_t = int('{}235959'.format(date.replace('-', '')[2:8]))
+def spc_realtime_graph(n, range_min, main_sensor, machine_id, cl_data):
+    end_time = dt.now()
+    # end_time = dt.now() - timedelta(days=27)
+    start_time = end_time - timedelta(minutes=range_min)
 
-    DP = DataProcess()
-    dff = DP.get_sensor_data(start_t, end_t)
+    DB = preDB()
+    df = DB.get_data('max' + machine_id, start_time, end_time)
 
-    if len(dff) <= 0:
-        options = []
-        max_value = None
-        sensor_value = []
+    if len(df) <= 0:
+        return {}
     else:
-        available_sensors = dff.columns.tolist()
-        available_sensors.remove('Molding Time')
-        
-        options = [{'label': i, 'value': i} for i in available_sensors]
+        cols = df.columns.tolist()
+        sensors = cols[1:]
+        t = df['Molding Time']
+        x_min, x_max = t.values[0], t.values[-1]
 
-        max_value = available_sensors[0]
-        sensor_value = available_sensors[:1]
+        datas = []
+        for sensor in sensors:
+            x = t
+            y = df[sensor]
+            if sensor == main_sensor:
+                datas.append(go.Scatter(
+                    x=x,
+                    y=y,
+                    customdata=df['Molding Time'],
+                    mode='lines+markers',
+                    marker={'size': 8, 'opacity': 0.8},
+                    line={'width': 1.5},
+                    name=sensor
+                ))
+            else:
+                datas.append(go.Scatter(
+                    x=x,
+                    y=y,
+                    customdata=df['Molding Time'],
+                    mode='lines+markers',
+                    marker={'size': 3, 'opacity': 0.2},
+                    line={'width': 0.5},
+                    name=sensor
+                ))
 
-    dff['Date'] = dff['Molding Time'].apply(lambda t: int(str(t)[:6]))
-
-    cl_df = DP.get_max_cl()
-
-    return dff.to_json(), cl_df.to_json(), options, max_value, options, sensor_value, date[:10], None
+        return realtime_figure(datas, x_min, x_max, cl_data, main_sensor)
 
 
 @app.callback(
-    [Output('main-indicator-scatter', 'figure'),
-     Output('loading-output-1', 'children')],
-    [Input('max-yaxis-column', 'value'),
-     Input('cl_check', 'value')],
-    [State('temp-value-a', 'children'),
-     State('temp-value-b', 'children')]
+    Output('retrain-confirm', 'message'),
+    [Input('spc-realtime-range', 'value')]
+)
+def change_realtime_range(range_min):
+    retrain_message = '確定變更工況嗎?\n系統將會收集前{}分鐘的數據進行模型更新。'\
+                      .format(range_min)
+    return retrain_message
+
+
+@app.callback(
+    [Output('spc-temp-value-a', 'children'),
+     Output('spc-temp-value-b', 'children'),
+     Output('spc-max-sensor', 'options'),
+     Output('spc-max-sensor', 'value'),
+     Output('spc-onemold-sensor', 'options'),
+     Output('spc-onemold-sensor', 'value'),
+     Output('spc-realtime-sensor', 'options'),
+     Output('spc-realtime-sensor', 'value'),
+     Output('spc-date-selected', 'children'),
+     Output('spc-loading-output-0', 'children')],
+    [Input('spc-date-picker-single', 'date'),
+     Input('spc-machine-id', 'value')]
+)
+def fetch_data(date_time, machine_id):
+    date = date_time.split(' ')[0]
+    start_time = dt.strptime('{} 000000'.format(date), '%Y-%m-%d %H%M%S')
+    end_time = dt.strptime('{} 235959'.format(date), '%Y-%m-%d %H%M%S')
+
+    DB = preDB()
+    dff = DB.get_data('max' + machine_id, start_time, end_time)
+
+    available_sensors = dff.columns.tolist()
+    available_sensors.remove('Molding Time')
+    
+    options = [{'label': i, 'value': i} for i in available_sensors]
+
+    init_sensor = available_sensors[0]
+    init_sensors = available_sensors[:1]
+
+    if len(dff) <= 0:
+        date_str = '({} 無數據)'.format(date)
+    else:
+        date_str = '({} 共{}筆數據)'.format(date, len(dff))
+
+    dff['Molding Time'] = dff['Molding Time'].astype(str)
+
+    spc = SPCModel()
+    cl_df = spc.get_model(machine_id)
+    cl_df.index = cl_df['cl_type']
+
+    return dff.to_json(), cl_df.to_json(), options, init_sensor, options, init_sensors, \
+           options, init_sensor, date_str, None
+
+
+@app.callback(
+    [Output('spc-max-graph', 'figure'),
+     Output('spc-loading-output-1', 'children')],
+    [Input('spc-max-sensor', 'value'),
+     Input('spc-checklist', 'value')],
+    [State('spc-temp-value-a', 'children'),
+     State('spc-temp-value-b', 'children')]
 )
 def update_main_graph(yaxis, cl_check, jsonified_data, cl_data):
     # print('update_main_graph!')
@@ -168,7 +253,7 @@ def update_main_graph(yaxis, cl_check, jsonified_data, cl_data):
     if len(dff) == 0:
         return create_scatter_figure([], None, None), None
 
-    x = dff['Molding Time'].apply(lambda t: datetime.strptime(str(t), '%y%m%d%H%M%S'))
+    x = dff['Molding Time']
     y = dff[yaxis]
     x_min, x_max = x.values[0], x.values[-1]
 
@@ -179,43 +264,43 @@ def update_main_graph(yaxis, cl_check, jsonified_data, cl_data):
         customdata=dff['Molding Time'],
         mode='lines+markers',
         marker={'size': 8, 'opacity': 0.5},
-        line={'width': 2}
+        line={'width': 1.5}
     ))
 
-    if 'CL' in cl_check:
+    if len(cl_check) > 0:
         cl_df = pd.read_json(cl_data)
-        cl = cl_df.loc[['ucl_3', 'lcl_3'], yaxis].values.round(3)
-        ucl = create_cl(x, cl, 'ucl')
-        lcl = create_cl(x, cl, 'lcl')
-        datas += [ucl, lcl]
+        color_dict = {'cl_1.5': 'green', 'cl_3': 'orange', 'cl_4.5': 'red'}
+        for check in cl_check:
+            cl = cl_df.loc[['u'+check, 'l'+check], yaxis].values.round(3)
+            ucl = create_cl(x, cl, 'ucl', color_dict[check])
+            lcl = create_cl(x, cl, 'lcl', color_dict[check])
+            datas += [ucl, lcl]
 
     return create_scatter_figure(datas, x_min, x_max), None
 
 
 @app.callback(
-    [Output('temp-value-c', 'children'),
-     Output('loading-output-2', 'children')],
-    [Input('main-indicator-scatter', 'clickData')]
+    [Output('spc-temp-value-c', 'children'),
+     Output('spc-loading-output-2', 'children')],
+    [Input('spc-max-graph', 'clickData')],
+    [State('spc-machine-id', 'value')]
 )
-def update_x_timeseries(click_data):
+def update_x_timeseries(click_data, machine_id):
     t = click_data['points'][0]['customdata']
     if t == 0:
         return None, None
     else:
-        DP = DataProcess()
-        m_df = DP.get_sensor_data(t, t, 'one mold')
+        DB = rawDB()
+        mold_time = dt.strptime(str(t), '%Y-%m-%d %H:%M:%S')
+        m_df = DB.get_data('sensor' + machine_id, mold_time, mold_time)
         return m_df.to_json(), None
-    
-    # except:
-    #     t = 0
-    #     return None, None
 
 
 @app.callback(
-    Output('y-time-series', 'figure'),
-    [Input('sensor-yaxis-column', 'value'),
-     Input('temp-value-c', 'children')],
-    [State('main-indicator-scatter', 'clickData'),]
+    Output('spc-onemold-graph', 'figure'),
+    [Input('spc-onemold-sensor', 'value'),
+     Input('spc-temp-value-c', 'children')],
+    [State('spc-max-graph', 'clickData'),]
 )
 def sensor_select_update(sensors, mold_data, click_data):
     # print('update timeseries!')
@@ -230,33 +315,37 @@ def sensor_select_update(sensors, mold_data, click_data):
             x=m_df['Elapsed Time'],
             y=m_df[sensor],
             mode='lines+markers',
-            marker={'size': 4},
-            line={'width': 2},
+            marker={'size': 6, 'opacity': 0.5},
+            line={'width': 1.2},
             name=sensor.strip()
         )
         datas.append(scatter)
 
     t = click_data['points'][0]['customdata']
-    t_str = ' Time: ' + get_Time(t)
+    t_str = ' Time: ' + t
     
     return create_time_series(datas, 'Linear', t_str)
 
 
 @app.callback(
-    Output('date-picker-single', 'date'),
-    [Input('cl_submit', 'n_clicks')],
-    [State('date-selected', 'children'),
-     State('cl_input1', 'value'),
-     State('cl_input2', 'value')]
+    Output('retrain-confirm', 'displayed'),
+    [Input('retrain-button', 'n_clicks')]
 )
-def update_cl(cl_clicks, date, t_start, t_end):
-    if t_start != None and t_end != None:
-        DP = DataProcess()
-        start_t = int((date + t_start).replace('-', '').replace(':', '')[2:])
-        end_t = int((date + t_end).replace('-', '').replace(':', '')[2:])
-        DP.update_cl(start_t, end_t)
+def display_confirm(n_clicks):
+    return True if n_clicks != None else False
 
-    return date + ' 23:59:59'
+
+@app.callback(
+    [Output('retrain-loading-output', 'children'),
+     Output('spc-date-picker-single', 'date')],
+    [Input('retrain-confirm', 'submit_n_clicks')],
+    [State('spc-machine-id', 'value'),
+     State('spc-realtime-range', 'value')]
+)
+def retrain_models(n_clicks, machine_id, range_min):
+    if n_clicks != None:
+        update_models(machine_id, range_min)
+    return None, str(dt.now())
 
 
 
